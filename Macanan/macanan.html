@@ -19,70 +19,32 @@
         justify-content: center;
         align-items: center;
         position: relative;
-        width: 700px; /* Atur sesuai kebutuhan ukuran papan */
-        height: 500px; /* Atur sesuai kebutuhan ukuran papan */
+        width: 1000;
       }
 
       .board {
-        position: relative; /* Penting untuk membuat elemen anak seperti titik dan garis sesuai koordinat */
+        position: relative;
         width: 100%;
         height: 100%;
-      }
-
-      .line {
-        position: absolute;
-        background-color: #cccccc;
-      }
-
-      .dot {
-        position: absolute;
-        width: 20px;
-        height: 20px;
-        background-color: #a4d4a5;
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-        cursor: pointer;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-      }
-
-      .dot:hover {
-        background-color: #ffdd57;
-      }
-
-      .dot.tiger {
-        background-color: #ff6b6b;
-      }
-
-      .dot.human {
-        background-color: #6bb7ff;
-      }
-
-      /* Styling untuk garis */
-      .horizontal {
-        height: 2px;
-      }
-
-      .vertical {
-        width: 2px;
-      }
-
-      .diagonal {
-        height: 2px;
-        transform-origin: top left;
+        border: 2px solid black;
       }
     </style>
   </head>
   <body>
     <div id="container">
-      <div id="game" class="board"></div>
+      <canvas id="gameCanvas" width="1000" height="500"></canvas>
     </div>
 
     <script>
-      const gameBoard = document.getElementById("game");
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
 
-      // Koordinat titik berdasarkan gambar arena
+      let uwongInHand = 21;
+      let uwongOnBoard = 0;
+      let macanInHand = 1;
+      let turn = 1;
+      let entities = {};
+
       const points = [
         { x: 150, y: 50 },
         { x: 250, y: 50 },
@@ -123,8 +85,7 @@
         { x: 700, y: 350 },
       ];
 
-      // Garis antar titik (hubungan)
-      const lines = [
+      const connections = [
         [0, 1],
         [1, 2],
         [2, 3],
@@ -203,72 +164,279 @@
         [35, 36],
       ];
 
-      // Fungsi untuk menggambar titik
-      function drawPoints() {
+      function drawBoard() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 2;
+
+        connections.forEach(([start, end]) => {
+          const pointA = points[start];
+          const pointB = points[end];
+          ctx.beginPath();
+          ctx.moveTo(pointA.x, pointA.y);
+          ctx.lineTo(pointB.x, pointB.y);
+          ctx.stroke();
+        });
+
         points.forEach((point, index) => {
-          const dot = document.createElement("div");
-          dot.classList.add("dot");
-          dot.style.left = `${point.x}px`;
-          dot.style.top = `${point.y}px`;
-          dot.dataset.index = index; // Indeks untuk melacak titik
-          gameBoard.appendChild(dot);
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+          ctx.fillStyle = "black";
+          ctx.fill();
         });
-      }
 
-      // Fungsi untuk menggambar garis
-      function drawLines() {
-        lines.forEach(([start, end]) => {
-          const startPoint = points[start];
-          const endPoint = points[end];
-          const length = Math.hypot(
-            endPoint.x - startPoint.x,
-            endPoint.y - startPoint.y
-          );
-          const angle =
-            Math.atan2(endPoint.y - startPoint.y, endPoint.x - startPoint.x) *
-            (180 / Math.PI);
-
-          const line = document.createElement("div");
-          line.classList.add("line");
-          line.style.width = `${length}px`;
-          line.style.height = "2px";
-          line.style.transform = `rotate(${angle}deg)`;
-          line.style.transformOrigin = "0 0"; // Rotasi dari titik awal
-          line.style.left = `${startPoint.x}px`;
-          line.style.top = `${startPoint.y}px`;
-          gameBoard.appendChild(line);
-        });
-      }
-
-      // Fungsi untuk interaksi klik titik
-      function handleDotClick(event) {
-        const dot = event.target;
-        if (dot.classList.contains("tiger")) {
-          dot.classList.remove("tiger");
-          dot.classList.add("human");
-        } else if (dot.classList.contains("human")) {
-          dot.classList.remove("human");
-        } else {
-          dot.classList.add("tiger");
+        for (let index in entities) {
+          const entity = entities[index];
+          ctx.beginPath();
+          ctx.arc(points[index].x, points[index].y, 10, 0, Math.PI * 2);
+          ctx.fillStyle = entity === "macan" ? "red" : "blue";
+          ctx.fill();
         }
       }
 
-      // Tambahkan event listener untuk klik pada titik
-      function addEventListeners() {
-        const dots = document.querySelectorAll(".dot");
-        dots.forEach((dot) => {
-          dot.addEventListener("click", handleDotClick);
+      function placeEntity(index) {
+        if (uwongInHand === 21 && turn == 1) {
+          placeUwongBlock(index);
+          console.log(index);
+        } else if (!(index in entities)) {
+          if (macanInHand > 0 && turn == 2) {
+            entities[index] = "macan";
+            macanInHand--;
+            turn = 1;
+          } else if (uwongInHand > 0 && turn == 1) {
+            entities[index] = "uwong";
+            uwongInHand--;
+            uwongOnBoard++;
+            turn = 2;
+          } else if (uwongInHand == 0 && turn == 1) {
+            // Cek apakah ada uwong yang bisa dipindahkan
+            moveUwong(index);
+          } else if (macanInHand == 0 && turn == 2) {
+            // Cek apakah macan bisa dipindahkan
+            moveMacan(index);
+          }
+          drawBoard();
+        }
+      }
+
+      function moveUwong(index) {
+        // Cek apakah uwong bisa dipindahkan ke titik yang dipilih dengan jarak satu garis
+        const currentPosition = findUwongPosition();
+        if (currentPosition !== -1) {
+          const isValidMove = isValidMoveUwong(currentPosition, index);
+          if (isValidMove) {
+            entities[index] = "uwong";
+            delete entities[currentPosition];
+            uwongOnBoard++;
+            turn = 2; // Beralih ke turn macan
+          }
+        }
+      }
+
+      function moveMacan(index) {
+        // Cek apakah macan bisa dipindahkan ke titik yang dipilih dengan jarak satu koneksi
+        const currentPosition = findMacanPosition();
+        if (currentPosition !== -1) {
+          const isValidMove = isValidMoveMacan(currentPosition, index);
+          if (isValidMove) {
+            entities[index] = "macan";
+            delete entities[currentPosition];
+            turn = 1; // Beralih ke turn uwong
+          }
+        }
+      }
+
+      // Fungsi untuk menemukan posisi uwong saat ini
+      function findUwongPosition() {
+        return Object.keys(entities).find(
+          (index) => entities[index] === "uwong"
+        );
+      }
+
+      // Fungsi untuk menemukan posisi macan saat ini
+      function findMacanPosition() {
+        return Object.keys(entities).find(
+          (index) => entities[index] === "macan"
+        );
+      }
+
+      // Validasi apakah gerakan uwong sah (jarak satu koneksi)
+      function isValidMoveUwong(startIndex, endIndex) {
+        const connection = connections.some(([a, b]) => {
+          return (
+            (a == startIndex && b == endIndex) ||
+            (b == startIndex && a == endIndex)
+          );
         });
+        return connection;
       }
 
-      // Gambar papan permainan
-      function initGame() {
-        drawLines();
-        drawPoints();
-        addEventListeners();
+      // Validasi apakah gerakan macan sah (melompati uwong)
+      function placeEntity(index) {
+        if (uwongInHand === 21 && turn == 1) {
+          placeUwongBlock(index);
+          console.log(index);
+        } else if (!(index in entities)) {
+          if (macanInHand > 0 && turn == 2) {
+            entities[index] = "macan";
+            macanInHand--;
+            turn = 1;
+          } else if (uwongInHand > 0 && turn == 1) {
+            entities[index] = "uwong";
+            uwongInHand--;
+            uwongOnBoard++;
+            turn = 2;
+          } else if (uwongInHand == 0 && turn == 1) {
+            // Cek apakah ada uwong yang bisa dipindahkan
+            moveUwong(index);
+          } else if (macanInHand == 0 && turn == 2) {
+            // Cek apakah macan bisa dipindahkan
+            moveMacan(index);
+          }
+          drawBoard();
+        }
       }
 
-      initGame();
+      function moveUwong(index) {
+        const currentPosition = findUwongPosition();
+        if (currentPosition !== -1) {
+          const isValidMove = isValidMoveUwong(currentPosition, index);
+          if (isValidMove) {
+            entities[index] = "uwong";
+            delete entities[currentPosition];
+            uwongOnBoard++;
+            turn = 2; // Beralih ke turn macan
+          }
+        }
+      }
+
+      function findUwongPosition() {
+        return Object.keys(entities).find(
+          (index) => entities[index] === "uwong"
+        );
+      }
+
+      function findMacanPosition() {
+        return Object.keys(entities).find(
+          (index) => entities[index] === "macan"
+        );
+      }
+
+      // Validasi apakah gerakan uwong sah (jarak satu koneksi)
+      function isValidMoveUwong(startIndex, endIndex) {
+        const connection = connections.some(([a, b]) => {
+          return (
+            (a == startIndex && b == endIndex) ||
+            (b == startIndex && a == endIndex)
+          );
+        });
+        return connection;
+      }
+
+      function moveMacan(index) {
+        const currentPosition = findMacanPosition();
+        if (currentPosition !== -1) {
+          const isValidMove = isValidMoveMacan(currentPosition, index);
+          if (isValidMove) {
+            entities[index] = "macan";
+            delete entities[currentPosition];
+            turn = 1; // Beralih ke turn uwong
+          }
+        }
+      }
+
+      // Validasi apakah gerakan macan sah
+      function isValidMoveMacan(startIndex, endIndex) {
+        // Pastikan endIndex tidak sama dengan startIndex
+        if (startIndex === endIndex) {
+          return false; // Tidak boleh ke posisi yang sama
+        }
+
+        // 1. Cek apakah ada koneksi langsung antara startIndex dan endIndex
+        const connection = connections.some(([a, b]) => {
+          if (
+            (a == startIndex && b == endIndex) ||
+            (b == startIndex && a == endIndex)
+          ) {
+            // Pastikan titik tujuan kosong
+            if (!(endIndex in entities)) {
+              return true; // Gerakan sah
+            }
+          }
+          return false;
+        });
+
+        if (connection) {
+          return true; // Jika koneksi langsung ditemukan dan titik kosong, gerakan sah
+        }
+
+        // 2. Jika tidak ada koneksi langsung, coba cek apakah macan bisa melompati uwong
+        // Cek apakah ada uwong di tengah antara startIndex dan endIndex
+        const midpoint = Math.floor(
+          (parseInt(startIndex) + parseInt(endIndex)) / 2
+        );
+        if (entities[midpoint] === "uwong" && !(endIndex in entities)) {
+          // Pastikan hanya bisa melompati uwong yang ada di jalur yang valid
+          const isAdjacent = connections.some(([a, b]) => {
+            return (
+              (a == startIndex && b == midpoint) ||
+              (a == midpoint && b == endIndex)
+            );
+          });
+          if (isAdjacent) {
+            return true; // Gerakan sah jika ada uwong di tengah dan titik tujuan kosong, serta ada koneksi yang valid
+          }
+        }
+
+        return false; // Jika tidak ada koneksi dan tidak ada uwong untuk dilompati, gerakan tidak sah
+      }
+
+      function placeUwongBlock(index) {
+        const row = Math.floor(index / 5);
+        const col = index % 5;
+        let canPlace = true;
+        if (
+          (index >= 0 && index < 3) ||
+          (index >= 5 && index < 8) ||
+          (index >= 10 && index < 13)
+        ) {
+          canPlace = true;
+        } else canPlace = false;
+        if (canPlace) {
+          for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 3; j++) {
+              const newIndex = (row + i) * 5 + (col + j);
+              entities[newIndex] = "uwong";
+              uwongInHand--;
+              uwongOnBoard++;
+            }
+          }
+          drawBoard();
+          turn = 2; // Switch turn to macan
+        }
+      }
+
+      canvas.addEventListener("click", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+        let closestIndex = -1;
+        let minDist = 20;
+        points.forEach((point, index) => {
+          const dist = Math.hypot(point.x - x, point.y - y);
+          if (dist < minDist) {
+            minDist = dist;
+            closestIndex = index;
+          }
+        });
+
+        if (closestIndex !== -1) {
+          placeEntity(closestIndex);
+        }
+      });
+
+      drawBoard();
     </script>
   </body>
 </html>
