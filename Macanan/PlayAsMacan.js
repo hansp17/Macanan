@@ -1,6 +1,8 @@
+// Game canvas setup
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// Game state variables
 let uwongInHand = 21;
 let uwongOnBoard = 0;
 let macanInHand = 1;
@@ -10,62 +12,42 @@ let gameStarted = false;
 let capturedUwong = 0;
 let selectedUwong = null;
 let isMovingUwong = false;
+let isAIEnabled = true;
+let aiDifficulty = 3;
 
-// Create buttons for mode selection
+// UI Setup
 const buttonContainer = document.createElement('div');
 buttonContainer.style.marginBottom = '10px';
 
-const moveButton = document.createElement('button');
-moveButton.textContent = 'Move Existing Human';
-moveButton.style.marginRight = '10px';
-moveButton.style.padding = '5px 10px';
 
-const addButton = document.createElement('button');
-addButton.textContent = 'Add New Human';
-addButton.style.padding = '5px 10px';
-
-buttonContainer.appendChild(moveButton);
-buttonContainer.appendChild(addButton);
-canvas.parentNode.insertBefore(buttonContainer, canvas);
-
-buttonContainer.style.display = 'none';
-
-moveButton.addEventListener('click', () => {
-    if (turn === 1 && uwongInHand < 21) {
-        isMovingUwong = true;
-        selectedUwong = null;
-        drawBoard();
-    }
+const difficultySelect = document.createElement('select');
+difficultySelect.style.padding = '5px 10px';
+difficultySelect.style.marginRight = '10px';
+['Easy (Depth 2)', 'Medium (Depth 3)', 'Hard (Depth 4)'].forEach((level, index) => {
+    const option = document.createElement('option');
+    option.value = index + 2;
+    option.text = level;
+    difficultySelect.appendChild(option);
 });
 
-addButton.addEventListener('click', () => {
-    if (turn === 1 && uwongInHand > 0) {
-        isMovingUwong = false;
-        selectedUwong = null;
-        drawBoard();
-    }
+
+difficultySelect.addEventListener('change', (e) => {
+    aiDifficulty = parseInt(e.target.value);
+    console.log(`AI difficulty set to depth ${aiDifficulty}`);
 });
 
-// Create image objects
+
+// Image loading
 const humanImage = new Image();
 const macanImage = new Image();
 humanImage.src = '/Macanan/source/manusia.png';
 macanImage.src = '/Macanan/source/macan.png';
-
-// Set image size
 const IMAGE_SIZE = 30;
 
-// Define starting points for macan
+// Game board setup
 const macanStartingPoints = [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36];
 
-// Wait for images to load before starting
-Promise.all([
-    new Promise(resolve => humanImage.onload = resolve),
-    new Promise(resolve => macanImage.onload = resolve)
-]).then(() => {
-    drawBoard();
-});
-
+// Points and connections setup
 const points = [
     { x: 150, y: 50 }, { x: 250, y: 50 }, { x: 350, y: 50 }, { x: 450, y: 50 }, { x: 550, y: 50 },
     { x: 150, y: 150 }, { x: 250, y: 150 }, { x: 350, y: 150 }, { x: 450, y: 150 }, { x: 550, y: 150 },
@@ -101,6 +83,7 @@ const connections = [
     [31, 32], [32, 33], [34, 35], [35, 36]
 ];
 
+// Drawing functions
 function drawBoard() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.strokeStyle = "black";
@@ -137,12 +120,10 @@ function drawBoard() {
     });
 
     // Draw entities
-    for (let index in entities) {
-        const entity = entities[index];
+    Object.entries(entities).forEach(([index, type]) => {
         const point = points[index];
-        const image = entity === "macan" ? macanImage : humanImage;
+        const image = type === "macan" ? macanImage : humanImage;
         
-        // Highlight selected uwong
         if (isMovingUwong && selectedUwong === index) {
             ctx.beginPath();
             ctx.arc(point.x, point.y, 15, 0, Math.PI * 2);
@@ -158,7 +139,7 @@ function drawBoard() {
             IMAGE_SIZE,
             IMAGE_SIZE
         );
-    }
+    });
 
     // Draw game info
     ctx.font = "20px Arial";
@@ -166,12 +147,276 @@ function drawBoard() {
     ctx.fillText(`Captured Uwong: ${capturedUwong}`, 10, 30);
     ctx.fillText(`Uwong in Hand: ${uwongInHand}`, 10, 60);
     
-    // Show/hide mode selection buttons
     buttonContainer.style.display = (turn === 1 && uwongInHand < 21 && uwongInHand > 0) ? 'block' : 'none';
 }
 
+class MinimaxAI {
+    constructor(maxDepth = 3) {
+        this.maxDepth = maxDepth;
+    }
+
+    getBestMove(gameState) {
+        if (gameState.uwongInHand === 21) {
+            return this.getInitialBlockPlacement(gameState);
+        } else if (gameState.uwongInHand > 0) {
+            return this.getBestPlacement(gameState);
+        } else {
+            return this.getBestMovement(gameState);
+        }
+    }
+
+    minimax(gameState, depth, alpha, beta, isMaximizing) {
+        if (depth === 0 || this.isGameOver(gameState)) {
+            return this.evaluatePosition(gameState);
+        }
+
+        if (isMaximizing) {
+            let maxScore = -Infinity;
+            const moves = this.getAllPossibleMoves(gameState, true);
+            
+            for (const move of moves) {
+                const newState = this.simulateMove(gameState, move);
+                const score = this.minimax(newState, depth - 1, alpha, beta, false);
+                maxScore = Math.max(maxScore, score);
+                alpha = Math.max(alpha, score);
+                if (beta <= alpha) break;
+            }
+            
+            return maxScore;
+        } else {
+            let minScore = Infinity;
+            const moves = this.getAllPossibleMoves(gameState, false);
+            
+            for (const move of moves) {
+                const newState = this.simulateMove(gameState, move);
+                const score = this.minimax(newState, depth - 1, alpha, beta, true);
+                minScore = Math.min(minScore, score);
+                beta = Math.min(beta, score);
+                if (beta <= alpha) break;
+            }
+            
+            return minScore;
+        }
+    }
+
+    evaluatePosition(gameState) {
+        let score = 0;
+        
+        // Core piece values
+        const uwongCount = Object.values(gameState.entities)
+            .filter(type => type === "uwong").length;
+        score += uwongCount * 10;
+        score -= gameState.capturedUwong * 15;
+
+        // Position evaluation
+        Object.entries(gameState.entities).forEach(([index, type]) => {
+            if (type === "uwong") {
+                // Connection bonus
+                const connectedUwong = this.getConnectedUwongCount(index, gameState);
+                score += connectedUwong * 3;
+
+                // Distance from Macan
+                const macanPos = this.findMacanPosition(gameState);
+                if (macanPos !== -1) {
+                    const distanceToMacan = this.getDistance(parseInt(index), macanPos);
+                    score += Math.min(distanceToMacan / 100, 5);
+                }
+
+                // Control of center bonus
+                const point = points[index];
+                const distanceToCenter = Math.abs(point.x - 350) + Math.abs(point.y - 250);
+                score += (700 - distanceToCenter) / 100;
+            }
+        });
+
+        return score;
+    }
+
+    // Helper methods
+    getConnectedUwongCount(index, gameState) {
+        return connections.reduce((count, [a, b]) => {
+            if ((a == index && gameState.entities[b] === "uwong") ||
+                (b == index && gameState.entities[a] === "uwong")) {
+                count++;
+            }
+            return count;
+        }, 0);
+    }
+
+    findMacanPosition(gameState) {
+        const macanEntry = Object.entries(gameState.entities)
+            .find(([_, type]) => type === "macan");
+        return macanEntry ? parseInt(macanEntry[0]) : -1;
+    }
+
+    getDistance(index1, index2) {
+        const point1 = points[index1];
+        const point2 = points[index2];
+        return Math.sqrt(
+            Math.pow(point2.x - point1.x, 2) + 
+            Math.pow(point2.y - point1.y, 2)
+        );
+    }
+
+    cloneGameState(gameState) {
+        return {
+            entities: { ...gameState.entities },
+            uwongInHand: gameState.uwongInHand,
+            uwongOnBoard: gameState.uwongOnBoard,
+            capturedUwong: gameState.capturedUwong
+        };
+    }
+
+    simulateMove(gameState, move) {
+        const newState = this.cloneGameState(gameState);
+        
+        if (move.capture !== undefined && move.capture !== null) {
+            delete newState.entities[move.capture];
+            newState.capturedUwong++;
+        }
+        
+        newState.entities[move.to] = newState.entities[move.from];
+        delete newState.entities[move.from];
+        
+        return newState;
+    }
+
+    isGameOver(gameState) {
+        return gameState.capturedUwong >= 15 || 
+               this.getAllPossibleMoves(gameState, false).length === 0;
+    }
+
+    getAllPossibleMoves(gameState, isUwong) {
+        const moves = [];
+        const pieces = Object.entries(gameState.entities)
+            .filter(([_, type]) => type === (isUwong ? "uwong" : "macan"));
+
+        for (const [fromIndex, _] of pieces) {
+            points.forEach((_, toIndex) => {
+                if (!(toIndex in gameState.entities)) {
+                    if (isUwong) {
+                        if (this.isValidMoveUwong(fromIndex, toIndex)) {
+                            moves.push({ from: fromIndex, to: toIndex });
+                        }
+                    } else {
+                        const moveResult = this.isValidMoveMacan(fromIndex, toIndex, gameState);
+                        if (moveResult.valid) {
+                            moves.push({ 
+                                from: fromIndex,to: toIndex, 
+                                capture: moveResult.capturedPosition 
+                            });
+                        }
+                    }
+                }
+            });
+        }
+        return moves;
+    }
+
+    isValidMoveUwong(startIndex, endIndex) {
+        return connections.some(([a, b]) => 
+            (a == startIndex && b == endIndex) || (b == startIndex && a == endIndex));
+    }
+
+    isValidMoveMacan(startIndex, endIndex, gameState) {
+        if (startIndex === endIndex || endIndex in gameState.entities) {
+            return { valid: false, capturedPosition: null };
+        }
+
+        // Check direct connection
+        const directConnection = connections.some(([a, b]) => 
+            (a == startIndex && b == endIndex) || (b == startIndex && a == endIndex));
+
+        if (directConnection) {
+            return { valid: true, capturedPosition: null };
+        }
+
+        // Check jump over uwong
+        let capturedPosition = null;
+        
+        const possibleJumps = connections.reduce((jumps, [a, b]) => {
+            if (a == startIndex || b == startIndex) {
+                const midpoint = a == startIndex ? b : a;
+                if (gameState.entities[midpoint] === "uwong") {
+                    connections.forEach(([c, d]) => {
+                        if ((c == midpoint && d == endIndex) || (d == midpoint && c == endIndex)) {
+                            jumps.push(true);
+                            capturedPosition = midpoint.toString();
+                        }
+                    });
+                }
+            }
+            return jumps;
+        }, []);
+
+        return { 
+            valid: possibleJumps.length > 0,
+            capturedPosition: capturedPosition
+        };
+    }
+
+    getBestPlacement(gameState) {
+        let bestScore = -Infinity;
+        let bestMove = null;
+        
+        for (let i = 0; i < points.length; i++) {
+            if (!(i in gameState.entities)) {
+                const newState = this.simulatePlacement(gameState, i);
+                const score = this.minimax(newState, this.maxDepth, -Infinity, Infinity, false);
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = { type: 'place', position: i };
+                }
+            }
+        }
+        
+        return bestMove;
+    }
+
+    getInitialBlockPlacement(gameState) {
+        const optimalStartPositions = [0, 1, 5, 6, 10, 11];
+        for (let pos of optimalStartPositions) {
+            if (this.isValidBlockPlacement(pos, gameState)) {
+                return { type: 'block', position: pos };
+            }
+        }
+        return null;
+    }
+
+    simulatePlacement(gameState, position) {
+        const newState = this.cloneGameState(gameState);
+        newState.entities[position] = "uwong";
+        newState.uwongInHand--;
+        newState.uwongOnBoard++;
+        return newState;
+    }
+
+    isValidBlockPlacement(index, gameState) {
+        const row = Math.floor(index / 5);
+        const col = index % 5;
+        
+        if (!((index >= 0 && index < 3) || (index >= 5 && index < 8) || (index >= 10 && index < 13))) {
+            return false;
+        }
+
+        // Check if all required positions are empty
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 3; j++) {
+                const newIndex = (row + i) * 5 + (col + j);
+                if (newIndex in gameState.entities) return false;
+            }
+        }
+        
+        return true;
+    }
+}
+
+// Initialize AI
+const ai = new MinimaxAI(3);
+
+// Game mechanics functions
 function placeEntity(index) {
-    // Handle initial macan placement
     if (macanInHand === 1 && turn === 2 && !gameStarted) {
         if (macanStartingPoints.includes(parseInt(index))) {
             entities[index] = "macan";
@@ -180,11 +425,9 @@ function placeEntity(index) {
             gameStarted = true;
         }
     }
-    // Handle macan movement after placement
     else if (macanInHand === 0 && turn === 2 && gameStarted) {
         moveMacan(index);
     }
-    // Handle uwong placement and movement
     else if (turn === 1) {
         if (uwongInHand === 21) {
             placeUwongBlock(index);
@@ -199,17 +442,20 @@ function placeEntity(index) {
     }
     
     drawBoard();
+    
+    // Trigger AI move if it's AI's turn
+    if (turn === 1 && isAIEnabled) {
+        makeBotMove();
+    }
 }
 
 function handleUwongMovement(index) {
     if (selectedUwong === null) {
-        // Select an uwong to move
         if (entities[index] === "uwong") {
             selectedUwong = index;
             drawBoard();
         }
     } else {
-        // Move the selected uwong
         if (isValidMoveUwong(selectedUwong, index) && !(index in entities)) {
             entities[index] = "uwong";
             delete entities[selectedUwong];
@@ -217,12 +463,9 @@ function handleUwongMovement(index) {
             isMovingUwong = false;
             turn = 2;
             drawBoard();
-        } else {
-            // If click on another uwong, select it instead
-            if (entities[index] === "uwong") {
-                selectedUwong = index;
-                drawBoard();
-            }
+        } else if (entities[index] === "uwong") {
+            selectedUwong = index;
+            drawBoard();
         }
     }
 }
@@ -235,7 +478,6 @@ function moveMacan(index) {
             entities[index] = "macan";
             delete entities[currentPosition];
             
-            // Remove captured uwong if any
             if (moveResult.capturedPosition !== null) {
                 delete entities[moveResult.capturedPosition];
                 capturedUwong++;
@@ -252,10 +494,8 @@ function findMacanPosition() {
 }
 
 function isValidMoveUwong(startIndex, endIndex) {
-    const connection = connections.some(([a, b]) => {
-        return (a == startIndex && b == endIndex) || (b == startIndex && a == endIndex);
-    });
-    return connection;
+    return connections.some(([a, b]) =>
+        (a == startIndex && b == endIndex) || (b == startIndex && a == endIndex));
 }
 
 function isValidMoveMacan(startIndex, endIndex) {
@@ -263,18 +503,14 @@ function isValidMoveMacan(startIndex, endIndex) {
         return { valid: false, capturedPosition: null };
     }
 
-    // Check for direct connection
-    const directConnection = connections.some(([a, b]) => {
-        return (a == startIndex && b == endIndex) || (b == startIndex && a == endIndex);
-    });
+    const directConnection = connections.some(([a, b]) =>
+        (a == startIndex && b == endIndex) || (b == startIndex && a == endIndex));
 
     if (directConnection) {
         return { valid: true, capturedPosition: null };
     }
 
-    // Check for jump over uwong
     let capturedPosition = null;
-    
     const possibleJumps = connections.reduce((jumps, [a, b]) => {
         if (a == startIndex || b == startIndex) {
             const midpoint = a == startIndex ? b : a;
@@ -299,27 +535,69 @@ function isValidMoveMacan(startIndex, endIndex) {
 function placeUwongBlock(index) {
     const row = Math.floor(index / 5);
     const col = index % 5;
-    let canPlace = true;
     
     if ((index >= 0 && index < 3) || (index >= 5 && index < 8) || (index >= 10 && index < 13)) {
-        canPlace = true;
-    } else {
-        canPlace = false;
-    }
-    
-    if (canPlace) {
+        let canPlace = true;
+        
+        // Check if all required positions are empty
         for (let i = 0; i < 3; i++) {
             for (let j = 0; j < 3; j++) {
                 const newIndex = (row + i) * 5 + (col + j);
-                entities[newIndex] = "uwong";
-                uwongInHand--;
-                uwongOnBoard++;
+                if (newIndex in entities) {
+                    canPlace = false;
+                    break;
+                }
             }
         }
-        turn = 2;
+        
+        if (canPlace) {
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    const newIndex = (row + i) * 5 + (col + j);
+                    entities[newIndex] = "uwong";
+                    uwongInHand--;
+                    uwongOnBoard++;
+                }
+            }
+            turn = 2;
+        }
     }
 }
 
+function makeBotMove() {
+    if (!isAIEnabled || turn !== 1) return;
+
+    const gameState = {
+        entities: { ...entities },
+        uwongInHand: uwongInHand,
+        uwongOnBoard: uwongOnBoard,
+        capturedUwong: capturedUwong
+    };
+
+    ai.maxDepth = aiDifficulty;
+    const move = ai.getBestMove(gameState);
+
+    if (move) {
+        setTimeout(() => {
+            if (move.type === 'block') {
+                placeUwongBlock(move.position);
+            } else if (move.type === 'place') {
+                placeEntity(move.position);
+            } else if (move.type === 'move') {
+                handleBotUwongMovement(move.from, move.to);
+            }
+        }, 500);
+    }
+}
+
+function handleBotUwongMovement(fromIndex, toIndex) {
+    entities[toIndex] = "uwong";
+    delete entities[fromIndex];
+    turn = 2;
+    drawBoard();
+}
+
+// Event listener for canvas clicks
 canvas.addEventListener("click", (event) => {
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -340,4 +618,10 @@ canvas.addEventListener("click", (event) => {
     }
 });
 
-drawBoard();
+// Start the game
+Promise.all([
+    new Promise(resolve => humanImage.onload = resolve),
+    new Promise(resolve => macanImage.onload = resolve)
+]).then(() => {
+    drawBoard();
+});
