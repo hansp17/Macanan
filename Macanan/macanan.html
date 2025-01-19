@@ -42,7 +42,7 @@
       let uwongInHand = 21;
       let uwongOnBoard = 0;
       let macanInHand = 1;
-      let turn = 1;
+      let turn = 1; // 1 uwong, 2 macan
       let entities = {};
 
       const points = [
@@ -195,26 +195,86 @@
       }
 
       function placeEntity(index) {
-        if (uwongInHand === 21 && turn == 1) {
-          placeUwongBlock(index);
-          console.log(index);
-        } else if (!(index in entities)) {
-          if (macanInHand > 0 && turn == 2) {
-            entities[index] = "macan";
-            macanInHand--;
-            turn = 1;
-          } else if (uwongInHand > 0 && turn == 1) {
+        // if (uwongInHand === 21 && turn == 1) {
+        //   placeUwongBlock(index);
+        //   console.log(index);
+        // } else if (!(index in entities)) {
+        //   if (macanInHand > 0 && turn == 2) {
+        //     entities[index] = "macan";
+        //     macanInHand--;
+        //     turn = 1;
+        //   } else if (uwongInHand > 0 && turn == 1) {
+        //     entities[index] = "uwong";
+        //     uwongInHand--;
+        //     uwongOnBoard++;
+        //     turn = 2;
+        //   } else if (uwongInHand == 0 && turn == 1) {
+        //     // Cek apakah ada uwong yang bisa dipindahkan
+        //     moveUwong(index);
+        //   } else if (macanInHand == 0 && turn == 2) {
+        //     // Cek apakah macan bisa dipindahkan
+        //     moveMacan(index);
+        //   }
+        //   drawBoard();
+        // }
+        if (!(index in entities)) {
+          if (turn == 1 && uwongInHand > 0) {
             entities[index] = "uwong";
             uwongInHand--;
             uwongOnBoard++;
             turn = 2;
-          } else if (uwongInHand == 0 && turn == 1) {
-            // Cek apakah ada uwong yang bisa dipindahkan
-            moveUwong(index);
-          } else if (macanInHand == 0 && turn == 2) {
-            // Cek apakah macan bisa dipindahkan
-            moveMacan(index);
+          } else if (turn === 2 && macanInHand > 0) {
+            entities [index] = "macan";
+            macanInHand--;
+            turn = 1;
           }
+          drawBoard();
+        } else if (entities[index] === (turn === 1 ? "uwong" : "macan")) {
+          moveEntity(index);
+        }
+      }
+
+      function moveEntity(index) {
+        const validMoves = connections.filter(([a, b]) => a == index || b == index);
+        const availableMoves = validMoves.map(([a, b]) => (a === index ? b : a)).filter((next) => !(next in entities));
+
+        if (turn === 2) {
+          //aturan macan loncat
+          const jumps = connections.filter(([a, b]) => {
+            const mid = a === index ? b : a;
+            const target = a === mid ? b : a;
+
+            // cek posisi ada uwong dan posisi target kosong
+            return (
+              (a == index || b == index) &&
+              mid in entities && 
+              entities [mid] == "uwong" &&
+              !(target in entities) &&
+              Math.abs(mid - index) % 2 === 1 
+            )
+          })
+
+          if (jumps.length > 0) {
+            const [a, b] = jumps[0];
+            const mid = a === index ? b : a;
+            const target = a === mid ? b : a;
+
+            //eksekusi
+            delete entities[index];
+            delete entities[mid]; //removed uwong yang dilompati
+            uwongOnBoard--;
+            entities[target] = "macan";
+            turn = 1 // ganti pemain
+            drawBoard();
+            return;
+          }
+        }
+
+        if (availableMoves.length > 0){
+          const target = availableMoves[0];
+          entities[target] = entities[index];
+          delete entities[index];
+          turn = turn === 1 ? 2 : 1;
           drawBoard();
         }
       }
