@@ -11,7 +11,163 @@ let capturedUwong = 0;
 let selectedUwong = null;
 let isMovingUwong = false;
 
-// Create buttons for mode selection
+//tombol reset
+const resetButton = document.createElement('button')
+resetButton.textContent = 'Reset Game';
+resetButton.style.marginLeft = '10px';
+resetButton.style.padding = '5px 10px';
+// buttonContainer.appendChild(resetButton);
+
+// resetButton.addEventListener('click', resetGame);
+
+// function resetGame() {
+//     uwongInHand = 21;
+//     uwongOnBoard = 0;
+//     macanInHand = 1;
+//     turn = 1;
+//     entities = {};
+//     gameStarted = false;
+//     capturedUwong = 0;
+//     selectedUwong = null;
+//     isMovingUwong = false;
+//     drawBoard();
+// }
+
+function moveUwongAI() {
+    const depth = 3 //kedalaman pencarian
+    const maximizingPlayer = true // AI sebagai MAX
+    let bestMove = null;
+    let alpha = -Infinity;
+    let beta = Infinity
+
+    for (const move of getAllUwongMoves()) {
+        const newEntities = simulateMove(move,entities) //simulasi langkah
+        const score = miimax(newEntities, depth - 1, alpha, beta, !maximizingPlayer);
+
+        if(score > alpha) {
+            alpha = score;
+            bestMove = move
+        }
+    }
+
+    if (bestMove) {
+        const { from, to } = bestMove
+        entities[to] = "uwong";
+        delete entities[from];
+        turn = 2;
+    }
+}
+
+function minimaax (currentEntities, depth, alpha, beta, maximizingPlayer) {
+    if(depth === 0 || isGameOver(currentEntities)) {
+        return evaluateBoard(currentEntities);
+    }
+
+    if (maximizingPlayer) {
+        let maxEval = -Infinity
+        for (const move of getAllUwongMoves(currentEntities)){
+            const newEntities = simulateMovev(move,currentEntities)
+            const eval = minimax(newEntities, depth - 1, alpha, beta, false)
+            maxEval = Math.max(maxEval, eval)
+            alpha = Math.max(alpha, eval)
+            if(beta <= alpa) break
+        }
+    } else {
+        let minEval = Infinity
+        for (const move of getAllMacanMoves(currentEntities)) {
+            const newEntities = simulateMove(move, currentEntities)
+            const eval = minimax(newEntities, depth - 1, alpha, beta, true)
+            minEval = Math.min(minEval,eval);
+            beta = Math.min(beta,eval);
+            if(beta <= alpha) break
+        }
+        return minEval
+    }
+}
+
+function getAllUwongMoves(currentEntities = entities) {
+    const uwongPositions = Object.keys(currentEntities).filter(
+        (key) => currentEntities[key] === "uwong"
+    )
+    const moves = []
+
+    uwongPositions.forEach((uwongPosition) => {
+        const uwongIndex = parseInt(uwongPosition)
+
+        connections.forEach(([a,b]) => {
+            const target = a === uwongIndex ? b : b === uwongIndex ? a : null
+
+            if(target !== null && !currentEntities[target] && isValidMoveUwong(uwongIndex, target)) {
+                moves.push({ from: uwongIndex, to: target })
+            }
+        })
+    })
+    return moves;
+}
+
+function getAllMacanMoves(currentEntities = entities) {
+    const macanPostition = Object.keys(currentEntities).find(
+        (key) => currentEntities[key] === "macan"
+    )
+    const macanIndex = parseInt(macanPostition)
+    const moves = []
+
+    connections.forEach(([a,b]) => {
+        const target = a === macanIndex ? b : b === macanIndex ? a : null
+
+        if(target !== null && !currentEntities[target] && isValidMoveMacan(macanIndex, target)) {
+            moves.push({ from: macanIndex, to: target })
+        }
+    })
+    return moves;
+}
+
+function simulateMove(move, currentEntities) {
+    const newEntities = { ...currentEntities };
+    newEntities[move.to] = newEntities[move.from];
+    delete newEntities[move.from];
+    return newEntities;
+}
+
+function evaluateBoard(currentEntities) {
+    const macanPosition = Object.keys(currentEntities).find(
+        (key) => currentEntities[key] === "macan"
+    );
+    const uwongPositions = Object.keys(currentEntities).filter(
+        (key) => currentEntities[key] === "uwong"
+    );
+
+    // Skor didasarkan pada jarak rata-rata uwong ke macan
+    const macanRow = Math.floor(macanPosition / 5);
+    const macanCol = macanPosition % 5;
+
+    const totalDistance = uwongPositions.reduce((acc, uwongPosition) => {
+        const uwongRow = Math.floor(uwongPosition / 5);
+        const uwongCol = uwongPosition % 5;
+        return (
+            acc + Math.abs(uwongRow - macanRow) + Math.abs(uwongCol - macanCol)
+        );
+    }, 0);
+
+    return -totalDistance; // Semakin kecil jarak, semakin baik
+}
+
+function isGameOver(currentEntities) {
+    // Periksa apakah macan telah terkepung
+    const macanPosition = Object.keys(currentEntities).find(
+        (key) => currentEntities[key] === "macan"
+    );
+    const macanIndex = parseInt(macanPosition);
+
+    return connections
+        .filter(([a, b]) => a === macanIndex || b === macanIndex)
+        .every(([a, b]) => {
+            const target = a === macanIndex ? b : a;
+            return currentEntities[target];
+        });
+}
+
+// Create buttons for mode selection 
 const buttonContainer = document.createElement('div');
 buttonContainer.style.marginBottom = '10px';
 
@@ -241,8 +397,10 @@ function moveMacan(index) {
                 capturedUwong++;
                 uwongOnBoard--;
             }
-            
+
+            checkMacanWin()            
             turn = 1;
+            moveHumanAI();
         }
     }
 }
