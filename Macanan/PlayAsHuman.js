@@ -40,11 +40,17 @@ moveButton.addEventListener('click', () => {
     }
 });
 
-addButton.addEventListener('click', () => {
-    if (turn === 1 && uwongInHand > 0) {
-        isMovingUwong = false;
-        selectedUwong = null;
-        drawBoard();
+// addButton.addEventListener('click', () => {
+//     if (turn === 1 && uwongInHand > 0) {
+//         isMovingUwong = false;
+//         selectedUwong = null;
+//         drawBoard();
+//     }
+// });
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (!gameStarted && turn === 2) {
+        initialMacanPlacement();
     }
 });
 
@@ -227,134 +233,104 @@ function isValidMoveUwong(startIndex, endIndex) {
     });
     return connection;
 }
-function tryMacanJump(currentPosition, targetIndex, adjacencyList, nodes, boardState) {
-    // Define the 8 possible directions (horizontal, vertical, diagonal)
-    const directions = [
-        // Horizontal right
-        (node) => adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x + 100 && nodes[neighbor].y === nodes[node].y) || 
-            adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x + 75 && nodes[neighbor].y === nodes[node].y) || null,
-        
-        // Horizontal left
-        (node) => adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x - 100 && nodes[neighbor].y === nodes[node].y) ||
-            adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x - 75 && nodes[neighbor].y === nodes[node].y) || null,
-        
-        // Vertical down
-        (node) => adjacencyList[node].find(neighbor => 
-            nodes[neighbor].y === nodes[node].y + 100 && nodes[neighbor].x === nodes[node].x) ||
-            adjacencyList[node].find(neighbor => 
-            nodes[neighbor].y === nodes[node].y + 50 && nodes[neighbor].x === nodes[node].x) || null,
-        
-        // Vertical up
-        (node) => adjacencyList[node].find(neighbor => 
-            nodes[neighbor].y === nodes[node].y - 100 && nodes[neighbor].x === nodes[node].x) ||
-            adjacencyList[node].find(neighbor => 
-            nodes[neighbor].y === nodes[node].y - 50 && nodes[neighbor].x === nodes[node].x) || null,
-        
-        // Diagonal right-down
-        (node) => adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x + 100 && nodes[neighbor].y === nodes[node].y + 100) ||
-            adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x + 75 && nodes[neighbor].y === nodes[node].y + 50) || null,
-        
-        // Diagonal left-up
-        (node) => adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x - 100 && nodes[neighbor].y === nodes[node].y - 100) ||
-            adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x - 75 && nodes[neighbor].y === nodes[node].y - 50) || null,
-        
-        // Diagonal right-up
-        (node) => adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x + 100 && nodes[neighbor].y === nodes[node].y - 100) ||
-            adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x + 75 && nodes[neighbor].y === nodes[node].y - 50) || null,
-        
-        // Diagonal left-down
-        (node) => adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x - 100 && nodes[neighbor].y === nodes[node].y + 100) ||
-            adjacencyList[node].find(neighbor => 
-            nodes[neighbor].x === nodes[node].x - 75 && nodes[neighbor].y === nodes[node].y + 50) || null,
-    ];
-
-    // Get path in a specific direction
-    const getPath = (start, dirFn) => {
-        const path = [];
-        let current = start;
-        while (true) {
-            const next = dirFn(current);
-            if (next == null) break;
-            path.push(next);
-            current = next;
-        }
-        return path;
-    };
-
-    let capturedUwongs = [];
-    let validDirection = null;
-
-    // Check each direction for a valid jump
-    for (const dirFn of directions) {
-        if (validDirection) break;
-
-        const path = getPath(currentPosition, dirFn);
-        
-        // Skip if first node in path is empty (must jump over at least one uwong)
-        if (path[0] !== undefined && boardState[path[0]] === null) {
-            continue;
-        }
-
-        const targetPos = path.indexOf(targetIndex);
-        if (targetPos !== -1) {
-            const pathToTarget = path.slice(0, targetPos + 1);
-            const middleNodes = pathToTarget.slice(1, -1);
-            
-            // Check if all middle nodes are uwong
-            if (middleNodes.every(idx => boardState[idx] === "uwong")) {
-                const uwongsInPath = pathToTarget.filter(i => boardState[i] === "uwong");
-                // Valid jump only if odd number of uwongs
-                if (uwongsInPath.length % 2 === 1) {
-                    capturedUwongs = uwongsInPath;
-                    validDirection = dirFn;
-                }
-            }
-        }
-    }
-
-    if (!validDirection) {
-        return { valid: false, capturedPosition: null };
-    }
-
-    // Return the middle uwong position for capture
-    const middleIndex = Math.floor(capturedUwongs.length / 2);
-    return {
-        valid: true,
-        capturedPosition: capturedUwongs[middleIndex].toString(),
-        additionalCaptures: capturedUwongs
-            .filter((_, index) => index !== middleIndex)
-            .map(pos => pos.toString())
-    };
-}
 
 function isValidMoveMacan(startIndex, endIndex) {
     if (startIndex === endIndex || endIndex in entities) {
         return { valid: false, capturedPosition: null };
     }
 
-    // Check for direct connection first
+    // Cek koneksi langsung
     const directConnection = connections.some(([a, b]) => {
         return (a == startIndex && b == endIndex) || (b == startIndex && a == endIndex);
     });
 
-    if (directConnection) {
+    if (directConnection && !(endIndex in entities)) {
         return { valid: true, capturedPosition: null };
     }
 
-    // Try jump move
-    return tryMacanJump(startIndex, endIndex, adjacencyList, points, entities);
+    // Cek gerakan memakan
+    const jumpResult = tryMacanJump(parseInt(startIndex), parseInt(endIndex), adjacencyList, points, entities);
+    return jumpResult;
 }
+
+function tryMacanJump(currentPosition, targetIndex, adjacencyList, nodes, boardState) {
+    // Hanya cek gerakan dalam garis lurus (horizontal, vertikal, atau diagonal)
+    const startNode = nodes[currentPosition];
+    const endNode = nodes[targetIndex];
+    
+    // Hitung arah gerakan
+    const dx = endNode.x - startNode.x;
+    const dy = endNode.y - startNode.y;
+    
+    // Pastikan gerakan dalam garis lurus
+    if (Math.abs(dx) !== Math.abs(dy) && dx !== 0 && dy !== 0) {
+        return { valid: false, capturedPosition: null };
+    }
+    
+    // Cari titik tengah (posisi Uwong yang akan dimakan)
+    const midX = (startNode.x + endNode.x) / 2;
+    const midY = (startNode.y + endNode.y) / 2;
+    
+    // Cari index titik tengah
+    let midIndex = -1;
+    for (let i = 0; i < nodes.length; i++) {
+        if (nodes[i].x === midX && nodes[i].y === midY) {
+            midIndex = i;
+            break;
+        }
+    }
+    
+    // Validasi gerakan melompat
+    if (midIndex !== -1 && 
+        boardState[midIndex] === "uwong" && // Harus ada Uwong di tengah
+        !(targetIndex in boardState) && // Titik tujuan harus kosong
+        adjacencyList[currentPosition].includes(midIndex) && // Harus terhubung ke titik tengah
+        adjacencyList[midIndex].includes(parseInt(targetIndex))) { // Titik tengah harus terhubung ke tujuan
+        
+        return {
+            valid: true,
+            capturedPosition: midIndex.toString(),
+            additionalCaptures: []
+        };
+    }
+    
+    return { valid: false, capturedPosition: null };
+}
+
+function findPossibleJumpPaths(start, target, adjacencyList, nodes, boardState) {
+    const paths = [];
+    const visited = new Set();
+    
+    function dfs(current, path) {
+        if (current === target) {
+            paths.push([...path]);
+            return;
+        }
+        
+        visited.add(current);
+        
+        for (const next of adjacencyList[current]) {
+            if (!visited.has(next)) {
+                const dx = nodes[next].x - nodes[current].x;
+                const dy = nodes[next].y - nodes[current].y;
+                
+                // Cek apakah gerakan valid (lurus atau diagonal)
+                if (Math.abs(dx) <= 100 && Math.abs(dy) <= 100) {
+                    path.push(next);
+                    dfs(next, path);
+                    path.pop();
+                }
+            }
+        }
+        
+        visited.delete(current);
+    }
+    
+    dfs(start, [start]);
+    return paths;
+}
+
+
 function isGameOver(state) {
     const macanPos = findMacanPosition(state);
     if (!macanPos) return true;
@@ -440,24 +416,33 @@ function evaluateState(state) {
     const macanPos = findMacanPosition(state);
     let score = 0;
     
-    if (!macanPos) return -Infinity; // Macan lost
+    if (!macanPos) return -Infinity;
     
-    // 1. Position evaluation
-    const centerScore = evaluatePosition(parseInt(macanPos), points);
-    score += centerScore * 10;
-    
-    // 2. Surrounding Uwongs evaluation (potential captures)
-    const surroundingScore = evaluateSurroundings(parseInt(macanPos), state);
-    score += surroundingScore * 50;
-    
-    // 3. Mobility evaluation
-    const mobilityScore = evaluateMobility(parseInt(macanPos), state);
-    score += mobilityScore * 30;
-    
-    // 4. Captured Uwongs bonus
-    const uwongCount = Object.values(state).filter(v => v === "uwong").length;
-    const capturedScore = (21 - uwongCount) * 100;
+    // Bonus besar untuk setiap Uwong yang dimakan
+    const capturedScore = capturedUwong * 1000;
     score += capturedScore;
+    
+    // Evaluasi gerakan yang memungkinkan memakan Uwong
+    const jumpMoves = getValidMacanMoves(macanPos, state).filter(move => move.type === "jump");
+    const jumpScore = jumpMoves.length * 500;  // Bonus besar untuk kemungkinan memakan
+    score += jumpScore;
+    
+    // Evaluasi posisi strategis
+    const centerX = 350;
+    const centerY = 250;
+    const position = points[macanPos];
+    const distanceToCenter = Math.sqrt(
+        Math.pow(position.x - centerX, 2) + 
+        Math.pow(position.y - centerY, 2)
+    );
+    const positionScore = 1000 / (distanceToCenter + 1);
+    score += positionScore;
+    
+    // Evaluasi Uwong di sekitar
+    const surroundingUwongs = adjacencyList[macanPos]
+        .filter(neighbor => state[neighbor] === "uwong")
+        .length;
+    score += surroundingUwongs * 200;
     
     return score;
 }
@@ -493,42 +478,50 @@ function evaluateMobility(pos, state) {
 
 // Helper functions for evaluation
 function evaluatePosition(pos, points) {
-    // Prefer central positions
+    // Prioritaskan posisi tengah board
     const centerX = 350;
     const centerY = 250;
+    const point = points[pos];
     const distance = Math.sqrt(
-        Math.pow(points[pos].x - centerX, 2) + 
-        Math.pow(points[pos].y - centerY, 2)
+        Math.pow(point.x - centerX, 2) + 
+        Math.pow(point.y - centerY, 2)
     );
-    return 1000 / (distance + 1); // Higher score for central positions
+    return 1000 / (distance + 1);
 }
 
 // Get valid moves for Macan
 function getValidMacanMoves(macanPos, state) {
     const moves = [];
-
-    // Check direct moves
+    macanPos = parseInt(macanPos);
+    
+    // Cek gerakan langsung (tanpa melompat)
     adjacencyList[macanPos].forEach(neighbor => {
-        if (!state[neighbor]) {
-            moves.push({ type: "move", target: neighbor });
+        if (!(neighbor in state)) {
+            moves.push({
+                type: "move",
+                target: neighbor
+            });
         }
     });
-
-    // Check jump moves
-    adjacencyList[macanPos].forEach(neighbor => {
-        const jumpResult = tryMacanJump(macanPos, neighbor, adjacencyList, points, state);
+    
+    // Cek gerakan melompat
+    points.forEach((_, targetIndex) => {
+        if (targetIndex === macanPos || targetIndex in state) return;
+        
+        const jumpResult = tryMacanJump(macanPos, targetIndex, adjacencyList, points, state);
         if (jumpResult.valid) {
             moves.push({
                 type: "jump",
-                target: neighbor,
+                target: targetIndex,
                 captured: jumpResult.capturedPosition,
                 additionalCaptures: jumpResult.additionalCaptures
             });
         }
     });
-
+    
     return moves;
 }
+
 
 // Simulate Macan's move
 function applyMove(state, macanPos, move) {
@@ -597,6 +590,44 @@ function checkMacanValidMoves() {
     }
     return false;
 }
+function initialMacanPlacement() {
+    // Cari posisi yang valid (tidak ada Uwong) untuk penempatan awal
+    let validPositions = [];
+    
+    // Cek posisi-posisi yang mungkin untuk penempatan awal
+    for (let i = 0; i < points.length; i++) {
+        if (!(i in entities)) { // Hanya posisi kosong
+            validPositions.push(i);
+        }
+    }
+    
+    if (validPositions.length > 0 && macanInHand === 1 && !gameStarted) {
+        // Pilih posisi tengah yang valid
+        const centerPositions = [12, 11, 13, 7, 17]; // Prioritas posisi tengah
+        let chosenPosition = null;
+        
+        // Coba pilih dari posisi tengah yang tersedia
+        for (const pos of centerPositions) {
+            if (validPositions.includes(pos)) {
+                chosenPosition = pos;
+                break;
+            }
+        }
+        
+        // Jika tidak ada posisi tengah yang tersedia, pilih random dari yang valid
+        if (chosenPosition === null) {
+            const randomIndex = Math.floor(Math.random() * validPositions.length);
+            chosenPosition = validPositions[randomIndex];
+        }
+        
+        entities[chosenPosition] = "macan";
+        macanInHand--;
+        turn = 1;
+        gameStarted = true;
+        drawBoard();
+    }
+}
+
 // Automatically move Macan
 function autoMoveMacan() {
     const macanPos = findMacanPosition(entities);
@@ -606,50 +637,55 @@ function autoMoveMacan() {
     let bestMove = null;
     let bestValue = -Infinity;
     
-    for (const move of validMoves) {
-        const newState = { ...entities };
-        
-        if (move.type === "jump") {
+    // Prioritaskan gerakan memakan
+    const jumpMoves = validMoves.filter(move => move.type === "jump");
+    if (jumpMoves.length > 0) {
+        // Selalu pilih gerakan memakan jika tersedia
+        bestMove = jumpMoves[0];
+    } else {
+        // Jika tidak ada gerakan memakan, pilih gerakan terbaik
+        for (const move of validMoves) {
+            const newState = { ...entities };
             delete newState[macanPos];
             newState[move.target] = "macan";
-            delete newState[move.captured];
-            if (move.additionalCaptures) {
-                move.additionalCaptures.forEach(pos => delete newState[pos]);
+            
+            // Evaluasi posisi baru
+            const value = evaluatePosition(parseInt(move.target), points);
+            if (value > bestValue) {
+                bestValue = value;
+                bestMove = move;
             }
-        } else {
-            delete newState[macanPos];
-            newState[move.target] = "macan";
-        }
-        
-        const value = minimax(newState, 4, false, -Infinity, Infinity);
-        if (value > bestValue) {
-            bestValue = value;
-            bestMove = move;
         }
     }
     
-    // Execute the best move
+    // Eksekusi gerakan terbaik
     if (bestMove) {
         if (bestMove.type === "jump") {
+            // Simpan posisi untuk animasi atau debugging
+            const fromPos = points[macanPos];
+            const toPos = points[bestMove.target];
+            const capturedPos = points[bestMove.captured];
+            
+            console.log('Jump move:', {
+                from: macanPos,
+                to: bestMove.target,
+                captured: bestMove.captured,
+                fromCoord: fromPos,
+                toCoord: toPos,
+                capturedCoord: capturedPos
+            });
+            
+            // Eksekusi gerakan
             delete entities[macanPos];
             entities[bestMove.target] = "macan";
             delete entities[bestMove.captured];
             capturedUwong++;
             uwongOnBoard--;
-            
-            if (bestMove.additionalCaptures) {
-                bestMove.additionalCaptures.forEach(pos => {
-                    delete entities[pos];
-                    capturedUwong++;
-                    uwongOnBoard--;
-                });
-            }
         } else {
             delete entities[macanPos];
             entities[bestMove.target] = "macan";
         }
         
-        // Check win conditions
         if (checkWinConditions()) {
             gameOver = true;
             winner = "Macan";
@@ -661,7 +697,6 @@ function autoMoveMacan() {
         drawBoard();
     }
 }
-
 // Call autoMoveMacan whenever it's Macan's turn
 function moveMacan(index) {
     if (turn === 2 && !gameOver) {
@@ -689,11 +724,11 @@ function checkWinConditions() {
 }
 canvas.addEventListener("click", (event) => {
     if (gameOver) return;
-
+    
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-
+    
     let closestIndex = -1;
     let minDist = 20;
     points.forEach((point, index) => {
@@ -703,44 +738,36 @@ canvas.addEventListener("click", (event) => {
             closestIndex = index;
         }
     });
-
+    
     if (closestIndex !== -1) {
         placeEntity(closestIndex);
     }
 });
 
 function placeEntity(index) {
-    // Handle macan placement (first move)
-    if (macanInHand === 1 && turn === 2 && !gameStarted) {
-        if (!(index in entities)) {
-            entities[index] = "macan";
-            macanInHand--;
-            turn = 1;
-            gameStarted = true;
-        }
+    // Penempatan awal Macan otomatis saat game dimulai
+    if (!gameStarted && turn === 2) {
+        initialMacanPlacement();
+        return;
     }
-    // Handle uwong placement and movement
-    else if (turn === 1) {
+    
+    // Handle gerakan Uwong
+    if (turn === 1) {
         if (uwongInHand === 21) {
             placeUwongBlock(index);
-            if (turn === 2) {  // If turn changed to Macan
+            if (turn === 2) {
                 setTimeout(() => {
                     autoMoveMacan();
                 }, 100);
             }
         } else if (isMovingUwong && uwongInHand === 0) {
             handleUwongMovement(index);
-            if (turn === 2) {  // If turn changed to Macan
-                setTimeout(() => {
-                    autoMoveMacan();
-                }, 100);
-            }
         } else if (uwongInHand > 0 && !(index in entities)) {
             entities[index] = "uwong";
             uwongInHand--;
             uwongOnBoard++;
             turn = 2;
-            setTimeout(() => {  // Trigger Macan's move after Uwong placement
+            setTimeout(() => {
                 autoMoveMacan();
             }, 100);
         }
