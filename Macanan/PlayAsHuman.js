@@ -209,7 +209,7 @@ function handleUwongMovement(index) {
                 return;
             }
             
-            // Trigger Macan's move after Uwong's move
+            // Trigger Macan's move
             setTimeout(() => {
                 autoMoveMacan();
             }, 100);
@@ -220,6 +220,20 @@ function handleUwongMovement(index) {
                 selectedUwong = index;
                 drawBoard();
             }
+        }
+    }
+}
+
+// Add this function to automatically move Macan after Uwong's move
+function autoMoveMacan() {
+    const macanPos = findMacanPosition();
+    if (macanPos !== undefined) {
+        const validMoves = getValidMacanMoves(macanPos, entities);
+        
+        if (validMoves.length > 0) {
+            // Choose the first valid move (you can improve this with more strategic selection)
+            const bestMove = validMoves[0];
+            moveMacan(bestMove.target);
         }
     }
 }
@@ -628,74 +642,134 @@ function initialMacanPlacement() {
     }
 }
 
+function findMultiJumpPaths(macanPos, state) {
+    const paths = [];
+    const visited = new Set();
+
+    function dfs(current, path, capturedUwongs) {
+        const validMoves = getValidMacanMoves(current, state);
+        const jumpMoves = validMoves.filter(move => move.type === "jump");
+
+        if (jumpMoves.length === 0) {
+            // No more jumps possible, record the path
+            if (path.length > 1) {
+                paths.push({
+                    path: path,
+                    captures: capturedUwongs
+                });
+            }
+            return;
+        }
+
+        for (const move of jumpMoves) {
+            if (!visited.has(move.target)) {
+                const newState = { ...state };
+                delete newState[current];
+                newState[move.target] = "macan";
+                delete newState[move.captured];
+
+                visited.add(move.target);
+                dfs(
+                    move.target, 
+                    [...path, move.target], 
+                    [...capturedUwongs, move.captured]
+                );
+                visited.delete(move.target);
+            }
+        }
+    }
+
+    dfs(macanPos, [macanPos], []);
+    return paths.sort((a, b) => b.captures.length - a.captures.length);
+}
+
 // Automatically move Macan
 function autoMoveMacan() {
     const macanPos = findMacanPosition(entities);
     if (!macanPos) return;
     
     const validMoves = getValidMacanMoves(macanPos, entities);
-    let bestMove = null;
-    let bestValue = -Infinity;
     
-    // Prioritaskan gerakan memakan
-    const jumpMoves = validMoves.filter(move => move.type === "jump");
-    if (jumpMoves.length > 0) {
-        // Selalu pilih gerakan memakan jika tersedia
-        bestMove = jumpMoves[0];
-    } else {
-        // Jika tidak ada gerakan memakan, pilih gerakan terbaik
-        for (const move of validMoves) {
-            const newState = { ...entities };
-            delete newState[macanPos];
-            newState[move.target] = "macan";
-            
-            // Evaluasi posisi baru
-            const value = evaluatePosition(parseInt(move.target), points);
-            if (value > bestValue) {
-                bestValue = value;
-                bestMove = move;
+    // Priority 1: Find multi-jump paths
+    const multiJumpPaths = findMultiJumpPaths(macanPos, entities);
+    if (multiJumpPaths.length > 0) {
+        const bestMultiJumpPath = multiJumpPaths[0];
+        
+        // Execute multi-jump path
+        let currentPos = macanPos;
+        bestMultiJumpPath.path.slice(1).forEach(target => {
+            const jumpMove = validMoves.find(move => 
+                move.type === "jump" && 
+                move.target === target
+            );
+
+            if (jumpMove) {
+                delete entities[currentPos];
+                entities[target] = "macan";
+                delete entities[jumpMove.captured];
+                currentPos = target;
+                capturedUwong++;
+                uwongOnBoard--;
+            }
+        });
+    } 
+    // Priority 2: Single capture moves
+    else {
+        const jumpMoves = validMoves.filter(move => move.type === "jump");
+        if (jumpMoves.length > 0) {
+            // Strategically choose capture near board edges or strategic points
+            const strategicJumpMoves = jumpMoves.filter(move => {
+                const target = points[move.target];
+                const isNearEdge = 
+                    target.x < 200 || 
+                    target.x > 500 || 
+                    target.y < 100 || 
+                    target.y > 400;
+                return isNearEdge;
+            });
+
+            const selectedMove = strategicJumpMoves.length > 0 
+                ? strategicJumpMoves[0] 
+                : jumpMoves[0];
+
+            delete entities[macanPos];
+            entities[selectedMove.target] = "macan";
+            delete entities[selectedMove.captured];
+            capturedUwong++;
+            uwongOnBoard--;
+        } 
+        // Priority 3: Strategic positioning if no captures
+        else {
+            let bestMove = null;
+            let bestScore = -Infinity;
+
+            for (const move of validMoves) {
+                const score = evaluatePosition(move.target, points) + 
+                    evaluateSurroundings(move.target, entities) + 
+                    evaluateMobility(move.target, entities);
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = move;
+                }
+            }
+
+            if (bestMove) {
+                delete entities[macanPos];
+                entities[bestMove.target] = "macan";
             }
         }
     }
-    
-    // Eksekusi gerakan terbaik
-    if (bestMove) {
-        if (bestMove.type === "jump") {
-            // Simpan posisi untuk animasi atau debugging
-            const fromPos = points[macanPos];
-            const toPos = points[bestMove.target];
-            const capturedPos = points[bestMove.captured];
-            
-            console.log('Jump move:', {
-                from: macanPos,
-                to: bestMove.target,
-                captured: bestMove.captured,
-                fromCoord: fromPos,
-                toCoord: toPos,
-                capturedCoord: capturedPos
-            });
-            
-            // Eksekusi gerakan
-            delete entities[macanPos];
-            entities[bestMove.target] = "macan";
-            delete entities[bestMove.captured];
-            capturedUwong++;
-            uwongOnBoard--;
-        } else {
-            delete entities[macanPos];
-            entities[bestMove.target] = "macan";
-        }
-        
-        if (checkWinConditions()) {
-            gameOver = true;
-            winner = "Macan";
-            drawBoard();
-            return;
-        }
-        
-        turn = 1;
+
+    if (checkWinConditions()) {
+        gameOver = true;
+        winner = "Macan";
         drawBoard();
+        return;
     }
+
+    turn = 1;
+    drawBoard();
 }
 // Call autoMoveMacan whenever it's Macan's turn
 function moveMacan(index) {
@@ -745,37 +819,36 @@ canvas.addEventListener("click", (event) => {
 });
 
 function placeEntity(index) {
-    // Penempatan awal Macan otomatis saat game dimulai
-    if (!gameStarted && turn === 2) {
-        initialMacanPlacement();
-        return;
+    // Handle macan placement
+    if (macanInHand === 1 && turn === 2 && !gameStarted) {
+        if (!(index in entities)) {
+            entities[index] = "macan";
+            macanInHand--;
+            turn = 1;
+            gameStarted = true;
+        }
     }
-    
-    // Handle gerakan Uwong
-    if (turn === 1) {
+    // Handle macan movement after placement
+    else if (macanInHand === 0 && turn === 2 && gameStarted) {
+        moveMacan(index);
+    }
+    // Handle uwong placement and movement
+    else if (turn === 1) {
         if (uwongInHand === 21) {
             placeUwongBlock(index);
-            if (turn === 2) {
-                setTimeout(() => {
-                    autoMoveMacan();
-                }, 100);
-            }
-        } else if (isMovingUwong && uwongInHand === 0) {
+        } else if (uwongInHand === 0) { // Allow movement when no uwong in hand
+            isMovingUwong = true;
             handleUwongMovement(index);
         } else if (uwongInHand > 0 && !(index in entities)) {
             entities[index] = "uwong";
             uwongInHand--;
             uwongOnBoard++;
             turn = 2;
-            setTimeout(() => {
-                autoMoveMacan();
-            }, 100);
         }
     }
     
     drawBoard();
 }
-
 function placeUwongBlock(index) {
     const row = Math.floor(index / 5);
     const col = index % 5;
