@@ -438,7 +438,7 @@ class MinimaxAI {
 
 function checkGameResult() {
     // Check if Macan has captured 8 Uwong pieces
-    if (capturedUwong >= 2) {
+    if (capturedUwong >= 8) {
         gameWinner = "macan";
         alert("Macan wins by capturing 8 Uwong!");
         return true;
@@ -459,6 +459,14 @@ function checkGameResult() {
     if (macanMoves.length === 0) {
         gameWinner = "uwong";
         alert("Uwong wins by blocking Macan's movement!");
+        return true;
+    }
+
+    // Check if there are any Uwong left on the board
+    const uwongCount = Object.values(entities).filter(type => type === "uwong").length;
+    if (uwongCount === 0) {
+        gameWinner = "macan";
+        alert("Macan wins by eliminating all Uwong!");
         return true;
     }
 
@@ -624,31 +632,53 @@ function resetGame() {
 
 function moveMacan(index) {
     const currentPosition = findMacanPosition();
-    
-    if (currentPosition !== undefined) {
+    if (currentPosition !== -1) {
         const moveResult = isValidMoveMacan(currentPosition, index);
-        
         if (moveResult.valid) {
             entities[index] = "macan";
             delete entities[currentPosition];
-
-            // Handle capturing Uwong
+            
+            // Remove captured uwong(s)
             if (moveResult.capturedPosition !== null) {
                 delete entities[moveResult.capturedPosition];
+                if (moveResult.additionalCaptures) {
+                    moveResult.additionalCaptures.forEach(pos => {
+                        delete entities[pos];
+                        capturedUwong++;
+                    });
+                }
                 capturedUwong++;
                 uwongOnBoard--;
             }
-
-            turn = 1;
-
-            // Check game result after Macan's move
+            
+            // Always check game result after Macan's move
             if (checkGameResult()) {
+                drawBoard();
                 return;
             }
+            
+            turn = 1;
         }
     }
 }
 
+function checkWinConditions() {
+    // Check if Uwong wins (Macan has no valid moves)
+    if (!checkMacanValidMoves()) {
+        gameOver = true;
+        winner = "Uwong";
+        return true;
+    }
+    
+    // Check if Macan wins (captured 8 or more Uwong)
+    if (capturedUwong >= 8) {
+        gameOver = true;
+        winner = "Macan";
+        return true;
+    }
+    
+    return false;
+}
 
 function isValidMoveUwong(startIndex, endIndex) {
     return connections.some(([a, b]) =>
@@ -675,25 +705,123 @@ function isValidMoveMacan(startIndex, endIndex) {
     }
 
     // Try jump move
-    const possibleJumps = connections.reduce((jumps, [a, b]) => {
-        if (a == startIndex || b == startIndex) {
-            const midpoint = a == startIndex ? b : a;
-            if (entities[midpoint] === "uwong") {
-                connections.forEach(([c, d]) => {
-                    if ((c == midpoint && d == endIndex) || (d == midpoint && c == endIndex)) {
-                        jumps.push({
-                            valid: true,
-                            capturedPosition: midpoint.toString()
-                        });
-                    }
-                });
+    return tryMacanJump(startIndex, endIndex, adjacencyList, points, entities);
+}
+function tryMacanJump(currentPosition, targetIndex, adjacencyList, nodes, boardState) {
+    // Define the 8 possible directions (horizontal, vertical, diagonal)
+    const directions = [
+        // Horizontal right
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 100 && nodes[neighbor].y === nodes[node].y) || 
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 75 && nodes[neighbor].y === nodes[node].y) || null,
+        
+        // Horizontal left
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 100 && nodes[neighbor].y === nodes[node].y) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 75 && nodes[neighbor].y === nodes[node].y) || null,
+        
+        // Vertical down
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].y === nodes[node].y + 100 && nodes[neighbor].x === nodes[node].x) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].y === nodes[node].y + 50 && nodes[neighbor].x === nodes[node].x) || null,
+        
+        // Vertical up
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].y === nodes[node].y - 100 && nodes[neighbor].x === nodes[node].x) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].y === nodes[node].y - 50 && nodes[neighbor].x === nodes[node].x) || null,
+        
+        // Diagonal right-down
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 100 && nodes[neighbor].y === nodes[node].y + 100) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 75 && nodes[neighbor].y === nodes[node].y + 50) || null,
+        
+        // Diagonal left-up
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 100 && nodes[neighbor].y === nodes[node].y - 100) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 75 && nodes[neighbor].y === nodes[node].y - 50) || null,
+        
+        // Diagonal right-up
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 100 && nodes[neighbor].y === nodes[node].y - 100) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 75 && nodes[neighbor].y === nodes[node].y - 50) || null,
+        
+        // Diagonal left-down
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 100 && nodes[neighbor].y === nodes[node].y + 100) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 75 && nodes[neighbor].y === nodes[node].y + 50) || null,
+    ];
+
+    // Get path in a specific direction
+    const getPath = (start, dirFn) => {
+        const path = [];
+        let current = start;
+        while (true) {
+            const next = dirFn(current);
+            if (next == null) break;
+            path.push(next);
+            current = next;
+        }
+        return path;
+    };
+
+    let capturedUwongs = [];
+    let validDirection = null;
+
+    // Check each direction for a valid jump
+    for (const dirFn of directions) {
+        if (validDirection) break;
+
+        const path = getPath(currentPosition, dirFn);
+        
+        // Skip if first node in path is empty (must jump over at least one uwong)
+        if (path[0] !== undefined && boardState[path[0]] === null) {
+            continue;
+        }
+
+        const targetPos = path.indexOf(targetIndex);
+        if (targetPos !== -1) {
+            const pathToTarget = path.slice(0, targetPos + 1);
+            const middleNodes = pathToTarget.slice(1, -1);
+            
+            // Check if all middle nodes are uwong
+            if (middleNodes.every(idx => boardState[idx] === "uwong")) {
+                const uwongsInPath = pathToTarget.filter(i => boardState[i] === "uwong");
+                // Valid jump only if odd number of uwongs
+                if (uwongsInPath.length % 2 === 1) {
+                    capturedUwongs = uwongsInPath;
+                    validDirection = dirFn;
+                }
             }
         }
-        return jumps;
-    }, []);
+    }
 
-    return possibleJumps.length > 0 ? possibleJumps[0] : { valid: false, capturedPosition: null };
+    if (!validDirection) {
+        return { valid: false, capturedPosition: null };
+    }
+
+    // Return the middle uwong position for capture
+    const middleIndex = Math.floor(capturedUwongs.length / 2);
+    return {
+        valid: true,
+        capturedPosition: capturedUwongs[middleIndex].toString(),
+        additionalCaptures: capturedUwongs
+            .filter((_, index) => index !== middleIndex)
+            .map(pos => pos.toString())
+    };
 }
+const adjacencyList = Array(points.length).fill().map(() => []);
+connections.forEach(([from, to]) => {
+    adjacencyList[from].push(to);
+    adjacencyList[to].push(from);
+});
 
 function placeUwongBlock(index) {
     const row = Math.floor(index / 5);
