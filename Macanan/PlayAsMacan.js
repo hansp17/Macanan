@@ -42,7 +42,7 @@ difficultySelect.addEventListener('change', (e) => {
 // Image loading
 const humanImage = new Image();
 const macanImage = new Image();
-humanImage.src = '/Macanan/source/manusia.png';
+humanImage.src = '/Macanan/source/uwong.png';
 macanImage.src = '/Macanan/source/macan.png';
 const IMAGE_SIZE = 30;
 

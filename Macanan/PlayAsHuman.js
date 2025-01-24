@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Create image objects
 const humanImage = new Image();
 const macanImage = new Image();
-humanImage.src = '/Macanan/source/manusia.png';
+humanImage.src = '/Macanan/source/uwong.png';
 macanImage.src = '/Macanan/source/macan.png';
 
 // Set image size
