@@ -95,12 +95,10 @@ class MinimaxAI {
     }
 
     getBestMove(gameState) {
-        // If no uwong left in hand, find best uwong movement
         if (gameState.uwongInHand === 0) {
             return this.getBestUwongMovement(gameState);
         }
-        
-        // If uwong still in hand, place or block
+    
         if (gameState.uwongInHand === 21) {
             return this.getInitialBlockPlacement(gameState);
         } else if (gameState.uwongInHand > 0) {
@@ -193,61 +191,61 @@ class MinimaxAI {
         if (depth === 0 || this.isGameOver(gameState)) {
             return this.evaluatePosition(gameState);
         }
-
+    
         if (isMaximizing) {
             let maxScore = -Infinity;
             const moves = this.getAllPossibleMoves(gameState, true);
-            
+    
             for (const move of moves) {
                 const newState = this.simulateMove(gameState, move);
                 const score = this.minimax(newState, depth - 1, alpha, beta, false);
                 maxScore = Math.max(maxScore, score);
                 alpha = Math.max(alpha, score);
-                if (beta <= alpha) break;
+                if (beta <= alpha) break; // Alpha-Beta Pruning
             }
-            
+    
             return maxScore;
         } else {
             let minScore = Infinity;
             const moves = this.getAllPossibleMoves(gameState, false);
-            
+    
             for (const move of moves) {
                 const newState = this.simulateMove(gameState, move);
                 const score = this.minimax(newState, depth - 1, alpha, beta, true);
                 minScore = Math.min(minScore, score);
                 beta = Math.min(beta, score);
-                if (beta <= alpha) break;
+                if (beta <= alpha) break; // Alpha-Beta Pruning
             }
-            
+    
             return minScore;
         }
     }
 
     evaluatePosition(gameState) {
         let score = 0;
-        
+    
         const uwongCount = Object.values(gameState.entities)
             .filter(type => type === "uwong").length;
         score += uwongCount * 10;
         score -= gameState.capturedUwong * 15;
-
+    
         Object.entries(gameState.entities).forEach(([index, type]) => {
             if (type === "uwong") {
                 const connectedUwong = this.getConnectedUwongCount(index, gameState);
                 score += connectedUwong * 3;
-
+    
                 const macanPos = this.findMacanPosition(gameState);
                 if (macanPos !== -1) {
                     const distanceToMacan = this.getDistance(parseInt(index), macanPos);
                     score += Math.min(distanceToMacan / 100, 5);
                 }
-
+    
                 const point = points[index];
                 const distanceToCenter = Math.abs(point.x - 350) + Math.abs(point.y - 250);
                 score += (700 - distanceToCenter) / 100;
             }
         });
-
+    
         return score;
     }
 
