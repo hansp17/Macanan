@@ -715,17 +715,17 @@ function minimax(state, depth, isMaximizing, alpha, beta) {
         return evaluateBoard(state);
     }
 
-    const macanPos = findMacanPosition(state);
-    const validMoves = getValidMacanMoves(macanPos, state);
-    // console.log(validMoves);
-    
     if (isMaximizing) {
+        // Simulasi gerakan Macan
+        const macanPos = findMacanPosition(state);
+        const validMoves = getValidMacanMoves(macanPos, state);
+
         let maxEval = -Infinity;
         for (const move of validMoves) {
             const newState = { ...state };
             delete newState[macanPos];
             if (move.jump) {
-                delete newState[move.midPoint];
+                delete newState[move.capturedPosition];
             }
             newState[move.target] = "macan";
 
@@ -739,14 +739,14 @@ function minimax(state, depth, isMaximizing, alpha, beta) {
         }
         return maxEval;
     } else {
+        // Simulasi gerakan Uwong
+        const validMoves = getValidUwongMoves(state);
+
         let minEval = Infinity;
         for (const move of validMoves) {
             const newState = { ...state };
-            delete newState[macanPos];
-            if (move.jump) {
-                delete newState[move.midPoint];
-            }
-            newState[move.target] = "macan";
+            newState[move.to] = "uwong";
+            delete newState[move.from];
 
             const eval = minimax(newState, depth - 1, true, alpha, beta);
             minEval = Math.min(minEval, eval);
@@ -759,7 +759,19 @@ function minimax(state, depth, isMaximizing, alpha, beta) {
         return minEval;
     }
 }
-
+function getValidUwongMoves(state) {
+    const moves = [];
+    for (let index in state) {
+        if (state[index] === "uwong") {
+            adjacencyList[index].forEach(neighbor => {
+                if (!(neighbor in state)) {
+                    moves.push({ from: index, to: neighbor });
+                }
+            });
+        }
+    }
+    return moves;
+}
 
 function evaluateBoard(state) {
     const macanPos = findMacanPosition(state);
