@@ -223,20 +223,19 @@ function handleUwongMovement(index) {
         }
     }
 }
-
 // Add this function to automatically move Macan after Uwong's move
-function autoMoveMacan() {
-    const macanPos = findMacanPosition();
-    if (macanPos !== undefined) {
-        const validMoves = getValidMacanMoves(macanPos, entities);
+// function autoMoveMacan() {
+//     const macanPos = findMacanPosition();
+//     if (macanPos !== undefined) {
+//         const validMoves = getValidMacanMoves(macanPos, entities);
         
-        if (validMoves.length > 0) {
-            // Choose the first valid move (you can improve this with more strategic selection)
-            const bestMove = validMoves[0];
-            moveMacan(bestMove.target);
-        }
-    }
-}
+//         if (validMoves.length > 0) {
+//             // Choose the first valid move (you can improve this with more strategic selection)
+//             const bestMove = validMoves[0];
+//             moveMacan(bestMove.target);
+//         }
+//     }
+// }
 function findMacanPosition(state = entities) {
     return Object.keys(state).find(index => state[index] === "macan");
 }
@@ -268,47 +267,114 @@ function isValidMoveMacan(startIndex, endIndex) {
 }
 
 function tryMacanJump(currentPosition, targetIndex, adjacencyList, nodes, boardState) {
-    // Hanya cek gerakan dalam garis lurus (horizontal, vertikal, atau diagonal)
-    const startNode = nodes[currentPosition];
-    const endNode = nodes[targetIndex];
-    
-    // Hitung arah gerakan
-    const dx = endNode.x - startNode.x;
-    const dy = endNode.y - startNode.y;
-    
-    // Pastikan gerakan dalam garis lurus
-    if (Math.abs(dx) !== Math.abs(dy) && dx !== 0 && dy !== 0) {
-        return { valid: false, capturedPosition: null };
-    }
-    
-    // Cari titik tengah (posisi Uwong yang akan dimakan)
-    const midX = (startNode.x + endNode.x) / 2;
-    const midY = (startNode.y + endNode.y) / 2;
-    
-    // Cari index titik tengah
-    let midIndex = -1;
-    for (let i = 0; i < nodes.length; i++) {
-        if (nodes[i].x === midX && nodes[i].y === midY) {
-            midIndex = i;
-            break;
+    // Define the 8 possible directions (horizontal, vertical, diagonal)
+    const directions = [
+        // Horizontal right
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 100 && nodes[neighbor].y === nodes[node].y) || 
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 75 && nodes[neighbor].y === nodes[node].y) || null,
+        
+        // Horizontal left
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 100 && nodes[neighbor].y === nodes[node].y) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 75 && nodes[neighbor].y === nodes[node].y) || null,
+        
+        // Vertical down
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].y === nodes[node].y + 100 && nodes[neighbor].x === nodes[node].x) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].y === nodes[node].y + 50 && nodes[neighbor].x === nodes[node].x) || null,
+        
+        // Vertical up
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].y === nodes[node].y - 100 && nodes[neighbor].x === nodes[node].x) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].y === nodes[node].y - 50 && nodes[neighbor].x === nodes[node].x) || null,
+        
+        // Diagonal right-down
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 100 && nodes[neighbor].y === nodes[node].y + 100) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 75 && nodes[neighbor].y === nodes[node].y + 50) || null,
+        
+        // Diagonal left-up
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 100 && nodes[neighbor].y === nodes[node].y - 100) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 75 && nodes[neighbor].y === nodes[node].y - 50) || null,
+        
+        // Diagonal right-up
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 100 && nodes[neighbor].y === nodes[node].y - 100) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x + 75 && nodes[neighbor].y === nodes[node].y - 50) || null,
+        
+        // Diagonal left-down
+        (node) => adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 100 && nodes[neighbor].y === nodes[node].y + 100) ||
+            adjacencyList[node].find(neighbor => 
+            nodes[neighbor].x === nodes[node].x - 75 && nodes[neighbor].y === nodes[node].y + 50) || null,
+    ];
+
+    // Get path in a specific direction
+    const getPath = (start, dirFn) => {
+        const path = [];
+        let current = start;
+        while (true) {
+            const next = dirFn(current);
+            if (next == null) break;
+            path.push(next);
+            current = next;
+        }
+        return path;
+    };
+
+    let capturedUwongs = [];
+    let validDirection = null;
+
+    // Check each direction for a valid jump
+    for (const dirFn of directions) {
+        if (validDirection) break;
+
+        const path = getPath(currentPosition, dirFn);
+        
+        // Skip if first node in path is empty (must jump over at least one uwong)
+        if (path[0] !== undefined && boardState[path[0]] === null) {
+            continue;
+        }
+
+        const targetPos = path.indexOf(targetIndex);
+        if (targetPos !== -1) {
+            const pathToTarget = path.slice(0, targetPos + 1);
+            const middleNodes = pathToTarget.slice(1, -1);
+            
+            // Check if all middle nodes are uwong
+            if (middleNodes.every(idx => boardState[idx] === "uwong")) {
+                const uwongsInPath = pathToTarget.filter(i => boardState[i] === "uwong");
+                // Valid jump only if odd number of uwongs
+                if (uwongsInPath.length % 2 === 1) {
+                    capturedUwongs = uwongsInPath;
+                    validDirection = dirFn;
+                }
+            }
         }
     }
-    
-    // Validasi gerakan melompat
-    if (midIndex !== -1 && 
-        boardState[midIndex] === "uwong" && // Harus ada Uwong di tengah
-        !(targetIndex in boardState) && // Titik tujuan harus kosong
-        adjacencyList[currentPosition].includes(midIndex) && // Harus terhubung ke titik tengah
-        adjacencyList[midIndex].includes(parseInt(targetIndex))) { // Titik tengah harus terhubung ke tujuan
-        
-        return {
-            valid: true,
-            capturedPosition: midIndex.toString(),
-            additionalCaptures: []
-        };
+
+    if (!validDirection) {
+        return { valid: false, capturedPosition: null };
     }
-    
-    return { valid: false, capturedPosition: null };
+
+    // Return the middle uwong position for capture
+    const middleIndex = Math.floor(capturedUwongs.length / 2);
+    return {
+        valid: true,
+        capturedPosition: capturedUwongs[middleIndex].toString(),
+        additionalCaptures: capturedUwongs
+            .filter((_, index) => index !== middleIndex)
+            .map(pos => pos.toString())
+    };
 }
 
 function findPossibleJumpPaths(start, target, adjacencyList, nodes, boardState) {
@@ -690,74 +756,51 @@ function autoMoveMacan() {
     
     const validMoves = getValidMacanMoves(macanPos, entities);
     
-    // Priority 1: Find multi-jump paths
-    const multiJumpPaths = findMultiJumpPaths(macanPos, entities);
-    if (multiJumpPaths.length > 0) {
-        const bestMultiJumpPath = multiJumpPaths[0];
-        
-        // Execute multi-jump path
-        let currentPos = macanPos;
-        bestMultiJumpPath.path.slice(1).forEach(target => {
-            const jumpMove = validMoves.find(move => 
-                move.type === "jump" && 
-                move.target === target
-            );
-
-            if (jumpMove) {
-                delete entities[currentPos];
-                entities[target] = "macan";
-                delete entities[jumpMove.captured];
-                currentPos = target;
-                capturedUwong++;
-                uwongOnBoard--;
-            }
+    // Priority 1: Multi-capture moves
+    const jumpMoves = validMoves.filter(move => move.type === "jump");
+    
+    if (jumpMoves.length > 0) {
+        // Choose the move with the most captures
+        const bestJumpMove = jumpMoves.reduce((best, current) => {
+            const currentCaptureCount = 1 + (current.additionalCaptures ? current.additionalCaptures.length : 0);
+            const bestCaptureCount = 1 + (best.additionalCaptures ? best.additionalCaptures.length : 0);
+            return currentCaptureCount > bestCaptureCount ? current : best;
         });
-    } 
-    // Priority 2: Single capture moves
-    else {
-        const jumpMoves = validMoves.filter(move => move.type === "jump");
-        if (jumpMoves.length > 0) {
-            // Strategically choose capture near board edges or strategic points
-            const strategicJumpMoves = jumpMoves.filter(move => {
-                const target = points[move.target];
-                const isNearEdge = 
-                    target.x < 200 || 
-                    target.x > 500 || 
-                    target.y < 100 || 
-                    target.y > 400;
-                return isNearEdge;
-            });
 
-            const selectedMove = strategicJumpMoves.length > 0 
-                ? strategicJumpMoves[0] 
-                : jumpMoves[0];
-
-            delete entities[macanPos];
-            entities[selectedMove.target] = "macan";
-            delete entities[selectedMove.captured];
+        // Execute the jump move
+        delete entities[macanPos];
+        entities[bestJumpMove.target] = "macan";
+        delete entities[bestJumpMove.captured];
+        
+        // Remove all additional captures
+        if (bestJumpMove.additionalCaptures) {
+            bestJumpMove.additionalCaptures.forEach(pos => delete entities[pos]);
+            capturedUwong += 1 + bestJumpMove.additionalCaptures.length;
+            uwongOnBoard -= 1 + bestJumpMove.additionalCaptures.length;
+        } else {
             capturedUwong++;
             uwongOnBoard--;
-        } 
-        // Priority 3: Strategic positioning if no captures
-        else {
-            let bestMove = null;
-            let bestScore = -Infinity;
+        }
+    } 
+    // Fallback to strategic positioning if no captures
+    else {
+        let bestMove = null;
+        let bestScore = -Infinity;
 
-            for (const move of validMoves) {
-                const score = evaluatePosition(move.target, points) + 
-                    evaluateSurroundings(move.target, entities) + 
-                    evaluateMobility(move.target, entities);
+        for (const move of validMoves) {
+            const score = evaluatePosition(move.target, points) + 
+                evaluateSurroundings(move.target, entities) + 
+                evaluateMobility(move.target, entities);
 
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestMove = move;
-                }
+            if (score > bestScore) {
+                bestScore = score;
+                bestMove = move;
             }
+        }
 
-            if (bestMove) {
-                delete entities[macanPos];
-                entities[bestMove.target] = "macan";
-            }
+        if (bestMove) {
+            delete entities[macanPos];
+            entities[bestMove.target] = "macan";
         }
     }
 
@@ -821,12 +864,13 @@ canvas.addEventListener("click", (event) => {
 function placeEntity(index) {
     // Handle macan placement
     if (macanInHand === 1 && turn === 2 && !gameStarted) {
-        if (!(index in entities)) {
-            entities[index] = "macan";
-            macanInHand--;
-            turn = 1;
-            gameStarted = true;
-        }
+        // if (!(index in entities)) {
+        //     entities[index] = "macan";
+        //     macanInHand--;
+        //     turn = 1;
+        //     gameStarted = true;
+        // }
+        initialMacanPlacement();
     }
     // Handle macan movement after placement
     else if (macanInHand === 0 && turn === 2 && gameStarted) {
