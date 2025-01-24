@@ -272,17 +272,22 @@ function tryMacanJump(currentPosition, targetIndex, adjacencyList, nodes, boardS
     // Filter out the start and end points
     const intermediatePath = path.slice(1, -1);
     
+    // Check that the path has an odd number of intermediate points
+    if (intermediatePath.length % 2 === 0) {
+        return { valid: false, capturedPosition: null };
+    }
+    
     // Find Uwongs in the path
     const capturedUwongs = intermediatePath.filter(pos => boardState[pos] === "uwong");
     
-    // Allow odd number of captures (1, 3, 6, etc.)
-    if (capturedUwongs.length > 0 && capturedUwongs.length % 2 === 1) {
+    // Allow jump only if the number of Uwongs matches the path length
+    if (capturedUwongs.length === intermediatePath.length) {
         // Check if path is clear and end point is empty
         if (!(targetIndex in boardState)) {
             return {
                 valid: true,
-                capturedPosition: capturedUwongs[0].toString(), // First captured Uwong
-                additionalCaptures: capturedUwongs.slice(1).map(String) // Additional captures
+                capturedPosition: capturedUwongs[0].toString(),
+                additionalCaptures: capturedUwongs.slice(1).map(String)
             };
         }
     }
@@ -679,26 +684,23 @@ function autoMoveMacan() {
     // Eksekusi gerakan terbaik
     if (bestMove) {
         if (bestMove.type === "jump") {
-            // Simpan posisi untuk animasi atau debugging
-            const fromPos = points[macanPos];
-            const toPos = points[bestMove.target];
-            const capturedPos = points[bestMove.captured];
-            
-            console.log('Jump move:', {
-                from: macanPos,
-                to: bestMove.target,
-                captured: bestMove.captured,
-                fromCoord: fromPos,
-                toCoord: toPos,
-                capturedCoord: capturedPos
-            });
-            
             // Eksekusi gerakan
             delete entities[macanPos];
             entities[bestMove.target] = "macan";
+            
+            // Capture first Uwong
             delete entities[bestMove.captured];
             capturedUwong++;
             uwongOnBoard--;
+            
+            // Capture additional Uwongs if any
+            if (bestMove.additionalCaptures) {
+                bestMove.additionalCaptures.forEach(pos => {
+                    delete entities[pos];
+                    capturedUwong++;
+                    uwongOnBoard--;
+                });
+            }
         } else {
             delete entities[macanPos];
             entities[bestMove.target] = "macan";
@@ -715,6 +717,7 @@ function autoMoveMacan() {
         drawBoard();
     }
 }
+
 // Call autoMoveMacan whenever it's Macan's turn
 function moveMacan(index) {
     if (turn === 2 && !gameOver) {
