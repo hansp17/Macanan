@@ -254,47 +254,65 @@ function isValidMoveMacan(startIndex, endIndex) {
 }
 
 function tryMacanJump(currentPosition, targetIndex, adjacencyList, nodes, boardState) {
-    // Hanya cek gerakan dalam garis lurus (horizontal, vertikal, atau diagonal)
     const startNode = nodes[currentPosition];
     const endNode = nodes[targetIndex];
     
-    // Hitung arah gerakan
+    // Calculate movement direction
     const dx = endNode.x - startNode.x;
     const dy = endNode.y - startNode.y;
     
-    // Pastikan gerakan dalam garis lurus
+    // Ensure movement is in a straight line (horizontal, vertical, or diagonal)
     if (Math.abs(dx) !== Math.abs(dy) && dx !== 0 && dy !== 0) {
         return { valid: false, capturedPosition: null };
     }
     
-    // Cari titik tengah (posisi Uwong yang akan dimakan)
-    const midX = (startNode.x + endNode.x) / 2;
-    const midY = (startNode.y + endNode.y) / 2;
+    // Find path between start and end
+    const path = findPathBetweenPoints(currentPosition, targetIndex, adjacencyList, nodes);
     
-    // Cari index titik tengah
-    let midIndex = -1;
-    for (let i = 0; i < nodes.length; i++) {
-        if (nodes[i].x === midX && nodes[i].y === midY) {
-            midIndex = i;
-            break;
+    // Filter out the start and end points
+    const intermediatePath = path.slice(1, -1);
+    
+    // Find Uwongs in the path
+    const capturedUwongs = intermediatePath.filter(pos => boardState[pos] === "uwong");
+    
+    // Allow odd number of captures (1, 3, 6, etc.)
+    if (capturedUwongs.length > 0 && capturedUwongs.length % 2 === 1) {
+        // Check if path is clear and end point is empty
+        if (!(targetIndex in boardState)) {
+            return {
+                valid: true,
+                capturedPosition: capturedUwongs[0].toString(), // First captured Uwong
+                additionalCaptures: capturedUwongs.slice(1).map(String) // Additional captures
+            };
         }
     }
     
-    // Validasi gerakan melompat
-    if (midIndex !== -1 && 
-        boardState[midIndex] === "uwong" && // Harus ada Uwong di tengah
-        !(targetIndex in boardState) && // Titik tujuan harus kosong
-        adjacencyList[currentPosition].includes(midIndex) && // Harus terhubung ke titik tengah
-        adjacencyList[midIndex].includes(parseInt(targetIndex))) { // Titik tengah harus terhubung ke tujuan
+    return { valid: false, capturedPosition: null };
+}
+
+// Helper function to find path between points
+function findPathBetweenPoints(start, end, adjacencyList, nodes) {
+    const queue = [[start]];
+    const visited = new Set([start]);
+    
+    while (queue.length > 0) {
+        const currentPath = queue.shift();
+        const currentNode = currentPath[currentPath.length - 1];
         
-        return {
-            valid: true,
-            capturedPosition: midIndex.toString(),
-            additionalCaptures: []
-        };
+        if (currentNode === end) {
+            return currentPath;
+        }
+        
+        for (const neighbor of adjacencyList[currentNode]) {
+            if (!visited.has(neighbor)) {
+                const newPath = [...currentPath, neighbor];
+                queue.push(newPath);
+                visited.add(neighbor);
+            }
+        }
     }
     
-    return { valid: false, capturedPosition: null };
+    return []; // No path found
 }
 
 function findPossibleJumpPaths(start, target, adjacencyList, nodes, boardState) {
