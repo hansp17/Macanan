@@ -42,7 +42,7 @@ difficultySelect.addEventListener('change', (e) => {
 // Image loading
 const humanImage = new Image();
 const macanImage = new Image();
-humanImage.src = '/Macanan/source/manusia.png';
+humanImage.src = '/Macanan/source/uwong.png';
 macanImage.src = '/Macanan/source/macan.png';
 const IMAGE_SIZE = 30;
 
@@ -491,8 +491,8 @@ const ai = new MinimaxAI(3);
 // Drawing functions
 function drawBoard() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#555";
+    ctx.lineWidth = 3;
 
     // Draw connections
     connections.forEach(([start, end]) => {
@@ -507,40 +507,56 @@ function drawBoard() {
     // Draw points
     points.forEach((point, index) => {
         ctx.beginPath();
-        ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
-        ctx.fillStyle = "black";
+        ctx.arc(point.x, point.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = "#777";
         ctx.fill();
     });
 
     // Draw entities
-    Object.entries(entities).forEach(([index, type]) => {
+    for (let index in entities) {
+        const entity = entities[index];
         const point = points[index];
-        const image = type === "macan" ? macanImage : humanImage;
-        
+        const image = entity === "macan" ? macanImage : humanImage;
+
+        // Highlight selected uwong
         if (isMovingUwong && selectedUwong === index) {
             ctx.beginPath();
-            ctx.arc(point.x, point.y, 15, 0, Math.PI * 2);
+            ctx.arc(point.x, point.y, 20, 0, Math.PI * 2);
             ctx.strokeStyle = "green";
+            ctx.lineWidth = 3;
             ctx.stroke();
-            ctx.strokeStyle = "black";
+            ctx.strokeStyle = "#555";
+            ctx.lineWidth = 3;
         }
-        
+
         ctx.drawImage(
             image,
-            point.x - IMAGE_SIZE/2,
-            point.y - IMAGE_SIZE/2,
+            point.x - IMAGE_SIZE / 2,
+            point.y - IMAGE_SIZE / 2,
             IMAGE_SIZE,
             IMAGE_SIZE
         );
-    });
+    }
 
     // Draw game info
     ctx.font = "20px Arial";
-    ctx.fillStyle = "black";
-    ctx.fillText(`Captured Uwong: ${capturedUwong}`, 10, 30);
-    ctx.fillText(`Uwong in Hand: ${uwongInHand}`, 10, 60);
-    
-    buttonContainer.style.display = (turn === 1 && uwongInHand < 21 && uwongInHand > 0) ? 'block' : 'none';
+    ctx.fillStyle = "#333";
+    ctx.fillText(`Captured Uwong: ${capturedUwong}`, 700, 30);
+    ctx.fillText(`Uwong in Hand: ${uwongInHand}`, 700, 60);
+    ctx.fillText(`Turn: ${turn === 1 ? 'Uwong' : 'Macan'}`, 700, 90);
+
+    if (gameOver) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.font = "40px Arial";
+        ctx.fillStyle = "white";
+        ctx.textAlign = "center";
+        ctx.fillText(`Game Over!`, canvas.width / 2, canvas.height / 2 - 30);
+        ctx.fillText(`${winner} Wins!`, canvas.width / 2, canvas.height / 2 + 30);
+
+        buttonContainer.style.display = 'none';
+    }
 }
 
 // Game mechanics functions

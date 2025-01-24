@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Create image objects
 const humanImage = new Image();
 const macanImage = new Image();
-humanImage.src = '/Macanan/source/manusia.png';
+humanImage.src = '/Macanan/source/uwong.png';
 macanImage.src = '/Macanan/source/macan.png';
 
 // Set image size
@@ -112,8 +112,8 @@ connections.forEach(([from, to]) => {
 
 function drawBoard() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = "black";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#555";
+    ctx.lineWidth = 3;
 
     // Draw connections
     connections.forEach(([start, end]) => {
@@ -128,9 +128,8 @@ function drawBoard() {
     // Draw points
     points.forEach((point, index) => {
         ctx.beginPath();
-        ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
-
-        ctx.fillStyle = "black";
+        ctx.arc(point.x, point.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = "#777";
         ctx.fill();
     });
 
@@ -143,10 +142,12 @@ function drawBoard() {
         // Highlight selected uwong
         if (isMovingUwong && selectedUwong === index) {
             ctx.beginPath();
-            ctx.arc(point.x, point.y, 15, 0, Math.PI * 2);
+            ctx.arc(point.x, point.y, 20, 0, Math.PI * 2);
             ctx.strokeStyle = "green";
+            ctx.lineWidth = 3;
             ctx.stroke();
-            ctx.strokeStyle = "black";
+            ctx.strokeStyle = "#555";
+            ctx.lineWidth = 3;
         }
 
         ctx.drawImage(
@@ -160,13 +161,13 @@ function drawBoard() {
 
     // Draw game info
     ctx.font = "20px Arial";
-    ctx.fillStyle = "black";
+    ctx.fillStyle = "#333";
     ctx.fillText(`Captured Uwong: ${capturedUwong}`, 700, 30);
     ctx.fillText(`Uwong in Hand: ${uwongInHand}`, 700, 60);
     ctx.fillText(`Turn: ${turn === 1 ? 'Uwong' : 'Macan'}`, 700, 90);
 
     if (gameOver) {
-        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         ctx.font = "40px Arial";
