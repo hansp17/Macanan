@@ -5,11 +5,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Permainan Macanan</title>
     <link rel="stylesheet" href="style.css" />
+    <style>
+      #selection {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+      }
+
+      button {
+        margin: 10px;
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+
+      #container {
+        display: none;
+      }
+    </style>
   </head>
   <body>
+    <div id="selection">
+      <h1>Pilih Peran Anda</h1>
+      <button id="playAsMacan">Bermain sebagai Macan</button>
+      <button id="playAsUwong">Bermain sebagai Uwong</button>
+    </div>
+
     <div id="container">
       <canvas id="gameCanvas" width="900" height="500"></canvas>
     </div>
-    <script src="PlayAsHuman.js"></script>
+
+    <script>
+      const playAsMacanButton = document.getElementById("playAsMacan");
+      const playAsUwongButton = document.getElementById("playAsUwong");
+      const selectionScreen = document.getElementById("selection");
+      const gameContainer = document.getElementById("container");
+
+      playAsMacanButton.addEventListener("click", () => {
+        loadScript("PlayAsMacan.js");
+      });
+
+      playAsUwongButton.addEventListener("click", () => {
+        loadScript("PlayAsHuman.js");
+      });
+
+      function loadScript(scriptName) {
+        const script = document.createElement("script");
+        script.src = scriptName;
+        script.onload = () => {
+          selectionScreen.style.display = "none";
+          gameContainer.style.display = "block";
+        };
+        document.body.appendChild(script);
+      }
+    </script>
   </body>
 </html>
